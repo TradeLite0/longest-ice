@@ -729,6 +729,35 @@ app.get('/admin', (req, res) => {
   res.redirect('/admin-panel/index.html');
 });
 
+// ==================== SETUP ENDPOINT ====================
+// Create admin user directly (temporary endpoint)
+app.get('/setup', async (req, res) => {
+  try {
+    // Create tables first
+    await initDatabase();
+    
+    // Check if admin exists
+    const existing = await pool.query('SELECT * FROM users WHERE phone = $1', ['01017680036']);
+    if (existing.rows.length > 0) {
+      return res.json({ success: true, message: 'Admin already exists', user: existing.rows[0] });
+    }
+    
+    // Create admin user
+    const bcrypt = require('bcryptjs');
+    const hashedPassword = await bcrypt.hash('01017680036aA@', 10);
+    
+    const result = await pool.query(
+      'INSERT INTO users (phone, password, name, type, is_approved, is_active) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      ['01017680036', hashedPassword, 'Administrator', 'admin', true, true]
+    );
+    
+    res.json({ success: true, message: 'Admin created successfully', user: result.rows[0] });
+  } catch (error) {
+    console.error('Setup error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // ==================== HEALTH CHECK ====================
 
 app.get('/health', async (req, res) => {
