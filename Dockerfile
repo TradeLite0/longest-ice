@@ -2,6 +2,9 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Install wget for healthchecks
+RUN apk add --no-cache wget
+
 # Copy package files
 COPY package*.json ./
 

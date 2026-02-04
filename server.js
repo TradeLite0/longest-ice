@@ -26,6 +26,21 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
+// 🔁 Retry connection with exponential backoff
+async function waitForDatabase(maxRetries = 30, delay = 2000) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      await pool.query('SELECT 1');
+      console.log('✅ Database connected successfully');
+      return true;
+    } catch (err) {
+      console.log(`⏳ Waiting for database... attempt ${i + 1}/${maxRetries}`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw new Error('Could not connect to database after ' + maxRetries + ' attempts');
+}
+
 // 🚀 إنشاء الجداول لو مش موجودة
 async function initDatabase() {
   try {
@@ -740,9 +755,14 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('🚀 ==========================================');
 });
 
-// Initialize DB in background
-initDatabase().then(() => {
-  console.log('✅ Database initialized successfully');
-}).catch(err => {
-  console.log('⚠️ Database initialization failed, will retry:', err.message);
-});
+// Initialize DB with retry
+(async () => {
+  try {
+    await waitForDatabase();
+    await initDatabase();
+    console.log('✅ Database initialized successfully');
+  } catch (err) {
+    console.error('❌ Database initialization failed:', err.message);
+    // Don't exit - keep trying in background
+  }
+})();
