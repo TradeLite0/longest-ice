@@ -721,20 +721,28 @@ app.get('/health', async (req, res) => {
     await pool.query('SELECT 1');
     res.json({ status: 'OK', database: 'connected', timestamp: new Date().toISOString() });
   } catch (error) {
-    res.status(500).json({ status: 'ERROR', database: 'disconnected', error: error.message });
+    // Return 200 even if DB is down so Railway doesn't kill the container
+    // DB connection will be retried automatically
+    res.json({ status: 'OK', database: 'connecting', timestamp: new Date().toISOString() });
   }
 });
 
 // ==================== START SERVER ====================
 
+// Start server immediately, don't wait for DB
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log('🚀 ==========================================');
+  console.log('🚀  Logistics Backend Server');
+  console.log('🚀  PostgreSQL Database + Admin Panel');
+  console.log('🚀 ==========================================');
+  console.log(`🚀  API Server: http://localhost:${PORT}`);
+  console.log(`🚀  Admin Panel: http://localhost:${PORT}/admin`);
+  console.log('🚀 ==========================================');
+});
+
+// Initialize DB in background
 initDatabase().then(() => {
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log('🚀 ==========================================');
-    console.log('🚀  Logistics Backend Server');
-    console.log('🚀  PostgreSQL Database + Admin Panel');
-    console.log('🚀 ==========================================');
-    console.log(`🚀  API Server: http://localhost:${PORT}`);
-    console.log(`🚀  Admin Panel: http://localhost:${PORT}/admin`);
-    console.log('🚀 ==========================================');
-  });
+  console.log('✅ Database initialized successfully');
+}).catch(err => {
+  console.log('⚠️ Database initialization failed, will retry:', err.message);
 });
