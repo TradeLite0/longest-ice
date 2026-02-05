@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'screens/gps_lock_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
+import 'screens/client_dashboard.dart';
 import 'screens/driver_dashboard.dart';
+import 'screens/profile_screen.dart';
 import 'screens/map_screen.dart';
 
 void main() {
@@ -57,7 +59,9 @@ class _LogisticsAppState extends State<LogisticsApp> {
       routes: {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
+        '/client_dashboard': (context) => const ClientDashboard(),
         '/driver_dashboard': (context) => const DriverDashboard(),
+        '/profile': (context) => const ProfileScreen(),
         '/map': (context) => const MapScreen(
           destination: 'الموقع',
           lat: 30.0444,

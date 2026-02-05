@@ -109,7 +109,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
           IconButton(
             icon: const Icon(Icons.person_outline),
             onPressed: () {
-              // الانتقال للبروفايل
+              Navigator.pushNamed(context, '/profile');
             },
             tooltip: 'حسابي',
           ),
@@ -241,6 +241,8 @@ class _DriverDashboardState extends State<DriverDashboard> {
         onTap: (index) {
           if (index == 1) {
             Navigator.pushNamed(context, '/map');
+          } else if (index == 3) {
+            Navigator.pushNamed(context, '/profile');
           }
         },
       ),

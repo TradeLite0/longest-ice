@@ -79,11 +79,17 @@ class _LoginScreenState extends State<LoginScreen> {
         await _authService.saveToken(result.token!);
         
         if (mounted) {
-          // الانتقال للشاشة الرئيسية
-          Navigator.pushReplacementNamed(
-            context, 
-            '/driver_dashboard',
-          );
+          // الانتقال للشاشة الرئيسية حسب نوع المستخدم
+          String route;
+          if (result.user?.type == 'driver') {
+            route = '/driver_dashboard';
+          } else if (result.user?.type == 'client') {
+            route = '/client_dashboard';
+          } else {
+            route = '/admin'; // للمشرفين
+          }
+          
+          Navigator.pushReplacementNamed(context, route);
           
           // رسالة نجاح
           ScaffoldMessenger.of(context).showSnackBar(

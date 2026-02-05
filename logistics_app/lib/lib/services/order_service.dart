@@ -27,7 +27,7 @@ class OrderService {
       final token = await _authService.getToken();
       
       final response = await http.get(
-        Uri.parse('$_baseUrl/orders/driver'),
+        Uri.parse('$_baseUrl/shipments'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -36,7 +36,7 @@ class OrderService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final List<dynamic> ordersJson = data['orders'] ?? [];
+        final List<dynamic> ordersJson = data['shipments'] ?? [];
         return ordersJson.map((json) => Order.fromJson(json)).toList();
       } else {
         throw Exception('فشل في تحميل الطلبات');
@@ -45,6 +45,26 @@ class OrderService {
       print('Error getting orders: $e');
       // بيانات تجريبية للاختبار
       return _getMockOrders();
+    }
+  }
+
+  /// 📦 جلب شحنات العميل
+  Future<Map<String, dynamic>> getClientShipments() async {
+    try {
+      final token = await _authService.getToken();
+      
+      final response = await http.get(
+        Uri.parse('$_baseUrl/shipments'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      print('Error getting client shipments: $e');
+      return {'success': false, 'message': 'خطأ في الاتصال'};
     }
   }
 
