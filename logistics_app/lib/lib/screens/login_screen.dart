@@ -431,6 +431,42 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 24),
+                    
+                    // 🔗 زرار إنشاء حساب جديد
+                    Container(
+                      width: double.infinity,
+                      height: 55,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.white.withOpacity(0.5)),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => Navigator.pushNamed(context, '/register'),
+                          child: const Center(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.person_add, color: Colors.white),
+                                SizedBox(width: 12),
+                                Text(
+                                  'إنشاء حساب جديد',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    
                     const SizedBox(height: 32),
                     
                     // 📞 معلومات الدعم
