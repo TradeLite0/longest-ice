@@ -1,0 +1,77 @@
+name: logistics_app
+description: نظام اللوجستيات - تطبيق توصيل متكامل
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=2.18.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # HTTP Requests - للاتصال بالـ API
+  http: ^1.1.0
+  
+  # تخزين محلي - لحفظ التوكن والبيانات
+  shared_preferences: ^2.2.2
+  
+  # فتح روابط (واتساب) - جديد
+  url_launcher: ^6.2.2
+  
+  # خرائط Google
+  google_maps_flutter: ^2.5.0
+  
+  # خرائط مجانية OpenStreetMap - جديد
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.0
+  
+  # تحديد الموقع GPS
+  geolocator: ^10.1.0
+  
+  # إشعارات
+  firebase_messaging: ^14.7.10
+  firebase_core: ^2.24.2
+  
+  # صور من الإنترنت
+  cached_network_image: ^3.3.0
+  
+  # أيقونات إضافية
+  font_awesome_flutter: ^10.6.0
+  
+  # تحديد الصور من المعرض
+  image_picker: ^1.0.7
+  
+  # QR Code (لتتبع الطلبات)
+  qr_flutter: ^4.1.0
+  
+  # Pull to refresh
+  pull_to_refresh: ^2.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  
+  # الملفات والصور
+  assets:
+    - assets/images/
+    - assets/icons/
+  
+  # الخطوط العربية
+  fonts:
+    - family: Cairo
+      fonts:
+        - asset: assets/fonts/Cairo-Regular.ttf
+        - asset: assets/fonts/Cairo-Bold.ttf
+          weight: 700
+    - family: Tajawal
+      fonts:
+        - asset: assets/fonts/Tajawal-Regular.ttf
+        - asset: assets/fonts/Tajawal-Bold.ttf
+          weight: 700
