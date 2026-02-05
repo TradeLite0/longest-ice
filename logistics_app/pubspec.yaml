@@ -47,6 +47,9 @@ dependencies:
   # QR Code (لتتبع الطلبات)
   qr_flutter: ^4.1.0
   
+  # QR Scanner - مسح الكود بالكاميرا
+  mobile_scanner: ^3.5.5
+  
   # Pull to refresh
   pull_to_refresh: ^2.0.0
 
