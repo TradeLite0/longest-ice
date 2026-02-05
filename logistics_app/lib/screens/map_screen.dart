@@ -116,7 +116,7 @@ class _MapScreenState extends State<MapScreen> {
                       const SizedBox(height: 8),
                       if (_destination != null)
                         Text(
-                          '📍 الإحداثيات: ${_destination!.latitude.toStringAsFixed(4)}, ${_destination!.longitude.toStringAsStringFixed(4)}',
+                          '📍 الإحداثيات: ${_destination!.latitude.toStringAsFixed(4)}, ${_destination!.longitude.toStringAsFixed(4)}',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey.shade600,
@@ -151,7 +151,7 @@ class _MapScreenState extends State<MapScreen> {
                               point: _destination!,
                               width: 80,
                               height: 80,
-                              builder: (context) => const Icon(
+                              child: const Icon(
                                 Icons.location_pin,
                                 color: Colors.red,
                                 size: 50,

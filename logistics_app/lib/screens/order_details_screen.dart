@@ -645,7 +645,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onPressed: onPressed,
+          onTap: onPressed,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
