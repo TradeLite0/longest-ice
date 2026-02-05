@@ -1,436 +1,378 @@
-/**
- * Admin Panel JavaScript
- * Logistics Pro - لوحة تحكم المشرف
- */
-
-// API Base URL
-const API_URL = window.location.origin;
-
-// Global State
-let authToken = localStorage.getItem('admin_token');
+// Admin Panel JavaScript
+const API_URL = window.location.origin + '/api';
+let token = localStorage.getItem('adminToken');
 let currentUser = null;
 let map = null;
-let mapLarge = null;
-let driversMarkers = [];
+let driversMarkers = {};
 
 // ==================== AUTH ====================
 
-document.getElementById('login-form')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const phone = document.getElementById('phone').value;
-    const password = document.getElementById('password').value;
+async function login() {
+    const phone = document.getElementById('loginPhone').value;
+    const password = document.getElementById('loginPassword').value;
     
     try {
-        const response = await fetch(`${API_URL}/api/auth/login`, {
+        const res = await fetch(`${API_URL}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone, password })
         });
         
-        const data = await response.json();
+        const data = await res.json();
         
-        if (data.success && data.user.type === 'admin') {
-            authToken = data.token;
+        if (data.success) {
+            token = data.token;
             currentUser = data.user;
-            localStorage.setItem('admin_token', authToken);
-            showDashboard();
+            localStorage.setItem('adminToken', token);
+            
+            if (!['admin', 'super_admin'].includes(data.user.type)) {
+                alert('غير مصرح لك بالدخول');
+                return;
+            }
+            
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('hidden');
+            document.getElementById('userName').textContent = data.user.name;
+            
+            loadDashboard();
+            initMap();
         } else {
-            showError(data.message || 'غير مصرح - يجب أن تكون مشرف');
+            alert(data.message);
         }
-    } catch (error) {
-        showError('خطأ في الاتصال بالخادم');
+    } catch (err) {
+        console.error('Login error:', err);
+        alert('خطأ في الاتصال');
     }
-});
-
-function showError(message) {
-    const errorDiv = document.getElementById('login-error');
-    errorDiv.textContent = message;
-    errorDiv.style.display = 'block';
 }
 
 function logout() {
-    authToken = null;
-    currentUser = null;
-    localStorage.removeItem('admin_token');
-    document.getElementById('login-page').classList.remove('hidden');
-    document.getElementById('dashboard').classList.add('hidden');
-}
-
-function showDashboard() {
-    document.getElementById('login-page').classList.add('hidden');
-    document.getElementById('dashboard').classList.remove('hidden');
-    
-    // Initialize map
-    initMaps();
-    
-    // Load data
-    loadStats();
-    loadUsers();
-    loadPendingUsers();
-    loadShipments();
-    loadDriversLocations();
-    
-    // Auto refresh every 10 seconds
-    setInterval(() => {
-        loadStats();
-        loadDriversLocations();
-    }, 10000);
+    localStorage.removeItem('adminToken');
+    location.reload();
 }
 
 // ==================== NAVIGATION ====================
 
-document.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', () => {
-        // Update active nav
-        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        item.classList.add('active');
-        
-        // Show section
-        const section = item.dataset.section;
-        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-        document.getElementById(`section-${section}`).classList.add('active');
-        
-        // Update title
-        const titles = {
-            overview: 'لوحة التحكم',
-            users: 'المستخدمين',
-            pending: 'في انتظار الموافقة',
-            shipments: 'الشحنات',
-            map: 'خريطة السائقين'
-        };
-        document.getElementById('page-title').textContent = titles[section];
-    });
-});
-
-// ==================== MAPS ====================
-
-function initMaps() {
-    // Small map in overview
-    map = L.map('map').setView([26.8206, 30.8025], 6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-    }).addTo(map);
+function showSection(sectionId) {
+    // Hide all sections
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     
-    // Large map
-    mapLarge = L.map('map-large').setView([26.8206, 30.8025], 6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-    }).addTo(mapLarge);
+    // Show selected
+    document.getElementById(sectionId).classList.add('active');
+    event.target.closest('.nav-item').classList.add('active');
+    
+    // Update title
+    const titles = {
+        dashboard: 'لوحة التحكم',
+        drivers: 'إدارة السائقين',
+        clients: 'إدارة العملاء',
+        shipments: 'إدارة الشحنات',
+        complaints: 'إدارة الشكاوى',
+        liveMap: 'الخريطة الحية'
+    };
+    document.getElementById('pageTitle').textContent = titles[sectionId];
+    
+    // Load data
+    if (sectionId === 'drivers') loadDrivers();
+    if (sectionId === 'clients') loadClients();
+    if (sectionId === 'shipments') loadShipments();
+    if (sectionId === 'complaints') loadComplaints();
+    if (sectionId === 'liveMap') refreshMap();
 }
 
-function updateMaps(locations) {
-    // Clear old markers
-    driversMarkers.forEach(m => {
-        map.removeLayer(m);
-        mapLarge.removeLayer(m);
-    });
-    driversMarkers = [];
-    
-    // Add new markers
-    locations.forEach(driver => {
-        const markerHtml = `
-            <div style="text-align: center;">
-                <div style="background: #ff6b35; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-bottom: 2px;">
-                    ${driver.driver_name}
-                </div>
-                <div style="color: #ff6b35; font-size: 24px;">📍</div>
-            </div>
-        `;
+// ==================== DASHBOARD ====================
+
+async function loadDashboard() {
+    try {
+        const res = await fetch(`${API_URL}/admin/dashboard`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
         
-        const icon = L.divIcon({
-            html: markerHtml,
-            className: 'driver-marker',
-            iconSize: [100, 50]
+        if (data.success) {
+            document.getElementById('statDrivers').textContent = data.stats.active_drivers;
+            document.getElementById('statClients').textContent = data.stats.total_clients;
+            document.getElementById('statShipments').textContent = data.stats.active_shipments;
+            document.getElementById('statComplaints').textContent = data.stats.pending_complaints;
+        }
+    } catch (err) {
+        console.error('Dashboard error:', err);
+    }
+}
+
+// ==================== DRIVERS ====================
+
+async function loadDrivers() {
+    try {
+        const res = await fetch(`${API_URL}/admin/users?type=driver`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        
+        const tbody = document.getElementById('driversTable');
+        tbody.innerHTML = '';
+        
+        if (data.success) {
+            data.users.forEach(driver => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${driver.name}</td>
+                    <td>${driver.phone}</td>
+                    <td>
+                        ${driver.is_approved 
+                            ? '<span class="badge badge-success">نشط</span>' 
+                            : '<span class="badge badge-warning">في الانتظار</span>'}
+                    </td>
+                    <td>-</td>
+                    <td>
+                        <button class="btn btn-primary" style="padding: 5px 10px; font-size: 12px;" 
+                            onclick="trackDriver(${driver.id})">
+                            <i class="fas fa-map-marker-alt"></i> تتبع
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    } catch (err) {
+        console.error('Load drivers error:', err);
+    }
+}
+
+async function addDriver() {
+    const name = document.getElementById('newDriverName').value;
+    const phone = document.getElementById('newDriverPhone').value;
+    const password = document.getElementById('newDriverPassword').value;
+    
+    try {
+        const res = await fetch(`${API_URL}/admin/create-user`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ name, phone, password, type: 'driver' })
         });
         
-        const marker = L.marker([driver.latitude, driver.longitude], { icon })
-            .bindPopup(`
-                <b>${driver.driver_name}</b><br>
-                رقم: ${driver.driver_phone}<br>
-                آخر تحديث: ${new Date(driver.timestamp).toLocaleString('ar-EG')}
-            `);
-        
-        marker.addTo(map);
-        const markerClone = L.marker([driver.latitude, driver.longitude], { icon })
-            .bindPopup(`
-                <b>${driver.driver_name}</b><br>
-                رقم: ${driver.driver_phone}<br>
-                آخر تحديث: ${new Date(driver.timestamp).toLocaleString('ar-EG')}
-            `);
-        markerClone.addTo(mapLarge);
-        
-        driversMarkers.push(marker, markerClone);
-    });
-}
-
-// ==================== API CALLS ====================
-
-async function apiCall(endpoint, options = {}) {
-    const response = await fetch(`${API_URL}${endpoint}`, {
-        ...options,
-        headers: {
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-            ...options.headers
-        }
-    });
-    return response.json();
-}
-
-// ==================== LOAD DATA ====================
-
-async function loadStats() {
-    try {
-        const [usersRes, driversRes, shipmentsRes, pendingRes] = await Promise.all([
-            apiCall('/api/admin/users'),
-            apiCall('/api/admin/drivers-locations'),
-            apiCall('/api/admin/shipments'),
-            apiCall('/api/admin/pending-users')
-        ]);
-        
-        if (usersRes.success) {
-            document.getElementById('total-users').textContent = usersRes.users.length;
-        }
-        
-        if (driversRes.success) {
-            document.getElementById('active-drivers').textContent = driversRes.locations.length;
-        }
-        
-        if (shipmentsRes.success) {
-            document.getElementById('total-shipments').textContent = shipmentsRes.shipments.length;
-        }
-        
-        if (pendingRes.success) {
-            document.getElementById('pending-users-count').textContent = pendingRes.users.length;
-            document.getElementById('pending-count').textContent = pendingRes.users.length;
-        }
-    } catch (error) {
-        console.error('Error loading stats:', error);
-    }
-}
-
-async function loadUsers() {
-    try {
-        const data = await apiCall('/api/admin/users');
+        const data = await res.json();
         
         if (data.success) {
-            const tbody = document.getElementById('users-table');
-            tbody.innerHTML = data.users.map(user => `
-                <tr>
-                    <td>${user.name}</td>
-                    <td>${user.phone}</td>
-                    <td><span class="role-badge ${user.type}">${getRoleName(user.type)}</span></td>
-                    <td><span class="status-badge ${user.is_active ? 'active' : 'disabled'}">${user.is_active ? 'مفعل' : 'معطل'}</span></td>
-                    <td>${user.last_login ? new Date(user.last_login).toLocaleString('ar-EG') : '-'}</td>
-                    <td>
-                        <div class="action-btns">
-                            ${user.is_active 
-                                ? `<button class="btn btn-disable" onclick="toggleUser(${user.id}, false)"><i class="fas fa-ban"></i> تعطيل</button>`
-                                : `<button class="btn btn-enable" onclick="toggleUser(${user.id}, true)"><i class="fas fa-check"></i> تفعيل</button>`
-                            }
-                            <button class="btn btn-delete" onclick="deleteUser(${user.id})"><i class="fas fa-trash"></i> حذف</button>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
+            closeModal('addDriver');
+            loadDrivers();
+            alert('تم إضافة السائق بنجاح');
+        } else {
+            alert(data.message);
         }
-    } catch (error) {
-        console.error('Error loading users:', error);
+    } catch (err) {
+        console.error('Add driver error:', err);
     }
 }
 
-async function loadPendingUsers() {
+// ==================== CLIENTS ====================
+
+async function loadClients() {
     try {
-        const data = await apiCall('/api/admin/pending-users');
+        const res = await fetch(`${API_URL}/admin/users?type=client`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        
+        const tbody = document.getElementById('clientsTable');
+        tbody.innerHTML = '';
         
         if (data.success) {
-            const tbody = document.getElementById('pending-table');
-            tbody.innerHTML = data.users.map(user => `
-                <tr>
-                    <td>${user.name}</td>
-                    <td>${user.phone}</td>
-                    <td><span class="role-badge ${user.type}">${getRoleName(user.type)}</span></td>
-                    <td>${new Date(user.created_at).toLocaleString('ar-EG')}</td>
-                    <td>
-                        <div class="action-btns">
-                            <button class="btn btn-approve" onclick="approveUser(${user.id}, '${user.type}')"><i class="fas fa-check"></i> موافقة</button>
-                            <button class="btn btn-reject" onclick="rejectUser(${user.id})"><i class="fas fa-times"></i> رفض</button>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
+            data.users.forEach(client => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${client.name}</td>
+                    <td>${client.phone}</td>
+                    <td>${new Date(client.created_at).toLocaleDateString('ar-EG')}</td>
+                    <td>-</td>
+                `;
+                tbody.appendChild(row);
+            });
         }
-    } catch (error) {
-        console.error('Error loading pending users:', error);
+    } catch (err) {
+        console.error('Load clients error:', err);
     }
 }
+
+// ==================== SHIPMENTS ====================
 
 async function loadShipments() {
     try {
-        const data = await apiCall('/api/admin/shipments');
+        const res = await fetch(`${API_URL}/shipments`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        
+        const tbody = document.getElementById('shipmentsTable');
+        tbody.innerHTML = '';
         
         if (data.success) {
-            const tbody = document.getElementById('shipments-table');
-            tbody.innerHTML = data.shipments.map(shipment => `
-                <tr>
-                    <td>${shipment.tracking_number}</td>
-                    <td>${shipment.customer_name}</td>
-                    <td>${shipment.destination}</td>
-                    <td><span class="status-badge ${getStatusClass(shipment.status)}">${getStatusName(shipment.status)}</span></td>
-                    <td>${shipment.driver_name || '-'}</td>
+            data.shipments.forEach(ship => {
+                const statusBadge = {
+                    pending: '<span class="badge badge-warning">معلقة</span>',
+                    assigned: '<span class="badge badge-info">مخصصة</span>',
+                    picked_up: '<span class="badge badge-info">تم الاستلام</span>',
+                    in_transit: '<span class="badge badge-warning">في الطريق</span>',
+                    delivered: '<span class="badge badge-success">تم التسليم</span>',
+                    cancelled: '<span class="badge badge-danger">ملغية</span>'
+                };
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${ship.tracking_number}</td>
+                    <td>${ship.customer_name}</td>
+                    <td>${ship.driver_name || '-'}</td>
+                    <td>${statusBadge[ship.status] || ship.status}</td>
+                    <td>${new Date(ship.created_at).toLocaleDateString('ar-EG')}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    } catch (err) {
+        console.error('Load shipments error:', err);
+    }
+}
+
+// ==================== COMPLAINTS ====================
+
+async function loadComplaints() {
+    try {
+        const res = await fetch(`${API_URL}/complaints`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        
+        const tbody = document.getElementById('complaintsTable');
+        tbody.innerHTML = '';
+        
+        if (data.success) {
+            data.complaints.forEach(comp => {
+                const priorityBadge = {
+                    urgent: '<span class="badge badge-danger">عاجل</span>',
+                    high: '<span class="badge badge-warning">عالي</span>',
+                    medium: '<span class="badge badge-info">متوسط</span>',
+                    low: '<span class="badge">منخفض</span>'
+                };
+                
+                const statusBadge = {
+                    open: '<span class="badge badge-danger">مفتوحة</span>',
+                    in_progress: '<span class="badge badge-warning">قيد المعالجة</span>',
+                    resolved: '<span class="badge badge-success">محلولة</span>',
+                    closed: '<span class="badge">مغلقة</span>'
+                };
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${comp.title}</td>
+                    <td>${comp.complaint_type}</td>
+                    <td>${priorityBadge[comp.priority]}</td>
+                    <td>${statusBadge[comp.status]}</td>
+                    <td>${new Date(comp.created_at).toLocaleDateString('ar-EG')}</td>
                     <td>
-                        <div class="action-btns">
-                            <button class="btn btn-delete" onclick="deleteShipment(${shipment.id})"><i class="fas fa-trash"></i> حذف</button>
-                        </div>
+                        <button class="btn btn-primary" style="padding: 5px 10px; font-size: 12px;"
+                            onclick="viewComplaint(${comp.id})">عرض</button>
                     </td>
-                </tr>
-            `).join('');
+                `;
+                tbody.appendChild(row);
+            });
         }
-    } catch (error) {
-        console.error('Error loading shipments:', error);
+    } catch (err) {
+        console.error('Load complaints error:', err);
     }
 }
 
-async function loadDriversLocations() {
-    try {
-        const data = await apiCall('/api/admin/drivers-locations');
-        
-        if (data.success) {
-            updateMaps(data.locations);
-        }
-    } catch (error) {
-        console.error('Error loading drivers locations:', error);
-    }
+// ==================== LIVE MAP ====================
+
+function initMap() {
+    map = L.map('map').setView([30.0444, 31.2357], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
 }
 
-// ==================== ACTIONS ====================
-
-async function approveUser(userId, role) {
-    try {
-        const data = await apiCall(`/api/admin/users/${userId}/approve`, {
-            method: 'PUT',
-            body: JSON.stringify({ role })
-        });
-        
-        if (data.success) {
-            alert('تم الموافقة على المستخدم');
-            loadPendingUsers();
-            loadUsers();
-            loadStats();
-        }
-    } catch (error) {
-        alert('خطأ في الموافقة');
-    }
-}
-
-async function rejectUser(userId) {
-    if (!confirm('هل أنت متأكد من رفض هذا المستخدم؟')) return;
+async function refreshMap() {
+    if (!map) return;
     
     try {
-        const data = await apiCall(`/api/admin/users/${userId}`, {
-            method: 'DELETE'
+        const res = await fetch(`${API_URL}/location/drivers`, {
+            headers: { 'Authorization': `Bearer ${token}` }
         });
+        const data = await res.json();
         
         if (data.success) {
-            alert('تم رفض المستخدم');
-            loadPendingUsers();
-            loadStats();
+            // Clear old markers
+            Object.values(driversMarkers).forEach(m => map.removeLayer(m));
+            driversMarkers = {};
+            
+            // Add new markers
+            data.drivers.forEach(driver => {
+                if (!driver.latitude || !driver.longitude) return;
+                
+                const color = driver.shipment_status ? 'orange' : 'green';
+                const icon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: `<div style="background-color: ${color}; width: 15px; height: 15px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>`,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+                
+                const marker = L.marker([driver.latitude, driver.longitude], { icon })
+                    .addTo(map)
+                    .bindPopup(`
+                        <b>${driver.name}</b><br>
+                        ${driver.phone}<br>
+                        <small>آخر تحديث: ${new Date(driver.timestamp).toLocaleTimeString('ar-EG')}</small>
+                    `);
+                
+                driversMarkers[driver.driver_id] = marker;
+            });
         }
-    } catch (error) {
-        alert('خطأ في الرفض');
+    } catch (err) {
+        console.error('Refresh map error:', err);
     }
 }
 
-async function toggleUser(userId, isActive) {
-    try {
-        const data = await apiCall(`/api/admin/users/${userId}/disable`, {
-            method: 'PUT',
-            body: JSON.stringify({ is_active: isActive })
-        });
-        
-        if (data.success) {
-            alert(isActive ? 'تم تفعيل المستخدم' : 'تم تعطيل المستخدم');
-            loadUsers();
-            loadStats();
-        }
-    } catch (error) {
-        alert('خطأ في التحديث');
+// Auto refresh map every 30 seconds
+setInterval(() => {
+    if (document.getElementById('liveMap').classList.contains('active')) {
+        refreshMap();
     }
+}, 30000);
+
+// ==================== MODALS ====================
+
+function openModal(modalId) {
+    document.getElementById(modalId + 'Modal').classList.add('active');
 }
 
-async function deleteUser(userId) {
-    if (!confirm('هل أنت متأكد من حذف هذا المستخدم؟ لا يمكن التراجع!')) return;
-    
-    try {
-        const data = await apiCall(`/api/admin/users/${userId}`, {
-            method: 'DELETE'
-        });
-        
-        if (data.success) {
-            alert('تم حذف المستخدم');
-            loadUsers();
-            loadStats();
-        }
-    } catch (error) {
-        alert('خطأ في الحذف');
-    }
-}
-
-async function deleteShipment(shipmentId) {
-    if (!confirm('هل أنت متأكد من حذف هذه الشحنة؟')) return;
-    
-    try {
-        const data = await apiCall(`/api/admin/shipments/${shipmentId}`, {
-            method: 'DELETE'
-        });
-        
-        if (data.success) {
-            alert('تم حذف الشحنة');
-            loadShipments();
-            loadStats();
-        }
-    } catch (error) {
-        alert('خطأ في الحذف');
-    }
-}
-
-// ==================== HELPERS ====================
-
-function getRoleName(role) {
-    const names = {
-        admin: 'مشرف',
-        driver: 'سائق',
-        client: 'عميل'
-    };
-    return names[role] || role;
-}
-
-function getStatusName(status) {
-    const names = {
-        pending: 'قيد الانتظار',
-        loading: 'جاري التحميل',
-        in_transit: 'في الطريق',
-        delivered: 'تم التسليم',
-        cancelled: 'ملغي'
-    };
-    return names[status] || status;
-}
-
-function getStatusClass(status) {
-    const classes = {
-        pending: 'pending',
-        loading: 'active',
-        in_transit: 'active',
-        delivered: 'active',
-        cancelled: 'disabled'
-    };
-    return classes[status] || 'pending';
+function closeModal(modalId) {
+    document.getElementById(modalId + 'Modal').classList.remove('active');
 }
 
 // ==================== INIT ====================
 
 // Check if already logged in
-if (authToken) {
-    showDashboard();
+if (token) {
+    fetch(`${API_URL}/auth/me`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success && ['admin', 'super_admin'].includes(data.user.type)) {
+            currentUser = data.user;
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('hidden');
+            document.getElementById('userName').textContent = data.user.name;
+            loadDashboard();
+            initMap();
+        } else {
+            localStorage.removeItem('adminToken');
+        }
+    })
+    .catch(() => {
+        localStorage.removeItem('adminToken');
+    });
 }
